@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>АРХИВ - {{ exhibit.exhibit_name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #79443B;
+            min-height: 100vh;
+        }
+
+        .header {
+            background-color: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            color: #79443B;
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-btn {
+            background-color: #79443B;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .nav-btn:hover {
+            background-color: #5a312b;
+            transform: translateY(-2px);
+        }
+
+        .logout-btn {
+            background-color: #e74c3c;
+        }
+
+        .logout-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px 40px;
+        }
+
+        .detail-card {
+            background-color: white;
+            border-radius: 30px;
+            padding: 40px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .exhibit-title {
+            color: #79443B;
+            font-size: 32px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #79443B;
+            padding-bottom: 10px;
+        }
+
+        .exhibit-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .exhibit-photos {
+            grid-column: 1 / -1;
+        }
+
+        .main-photo {
+            width: 100%;
+            height: 400px;
+            background-color: #f0f0f0;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 2px solid #79443B;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .info-section {
+            background-color: #f8f8f8;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .section-title {
+            color: #79443B;
+            font-size: 20px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            width: 120px;
+        }
+
+        .info-value {
+            color: #333;
+            flex: 1;
+        }
+
+        .history-item {
+            background-color: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #79443B;
+        }
+
+        .history-date {
+            color: #79443B;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .history-type {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .type-restoration {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .type-exhibition {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .type-write_off {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .type-move {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .history-desc {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .history-doc {
+            color: #999;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .nav-bar {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .exhibit-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav-bar">
+            <div class="logo">АРХИВ</div>
+            <div class="nav-links">
+                <a href="{% url 'exhibit_list' %}" class="nav-btn">На главную</a>
+                <a href="{% url 'add_exhibit' %}" class="nav-btn">Добавить экспонат</a>
+                <a href="{% url 'management_menu' %}" class="nav-btn">Управление</a>
+                <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="nav-btn logout-btn">Выйти</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="javascript:history.back()" class="back-link">← Назад</a>
+        
+        <div class="detail-card">
+            <h1 class="exhibit-title">{{ exhibit.exhibit_name }}</h1>
+            
+            <div class="exhibit-content">
+                <!-- Фотографии -->
+                <div class="exhibit-photos">
+                    {% if photos %}
+                        <div class="main-photo" style="background-image: url('{{ photos.0.photo_path }}')"></div>
+                    {% else %}
+                        <div class="main-photo" style="background-image: url('https://via.placeholder.com/800x400/79443B/ffffff?text=Нет+фото')"></div>
+                    {% endif %}
+                </div>
+                
+                <!-- Основная информация -->
+                <div class="info-section">
+                    <h2 class="section-title">Идентификационные сведения</h2>
+                    <div class="info-row">
+                        <span class="info-label">Инв. номер:</span>
+                        <span class="info-value">{{ exhibit.inventory_number }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Учетный шифр:</span>
+                        <span class="info-value">{{ exhibit.object_code|default:"—" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Поступление:</span>
+                        <span class="info-value">{{ exhibit.acquisition_date }} ({{ exhibit.method_name|default:"—" }})</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Источник:</span>
+                        <span class="info-value">{{ exhibit.source_of_acquisition|default:"—" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Документ:</span>
+                        <span class="info-value">{{ exhibit.document_reference|default:"—" }}</span>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h2 class="section-title">Описательные сведения</h2>
+                    <div class="info-row">
+                        <span class="info-label">Автор:</span>
+                        <span class="info-value">{{ exhibit.author_name|default:"Неизвестен" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Датировка:</span>
+                        <span class="info-value">{{ exhibit.dating|default:"—" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Материалы:</span>
+                        <span class="info-value">{{ exhibit.all_materials }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Техника:</span>
+                        <span class="info-value">{{ exhibit.technique_name|default:"—" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Размеры:</span>
+                        <span class="info-value">{{ exhibit.dimensions|default:"—" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Вес:</span>
+                        <span class="info-value">{% if exhibit.weight %}{{ exhibit.weight }} кг{% else %}—{% endif %}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Подлинность:</span>
+                        <span class="info-value">{{ exhibit.authenticity_name|default:"—" }}</span>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h2 class="section-title">Место хранения</h2>
+                    <div class="info-row">
+                        <span class="info-label">Локация:</span>
+                        <span class="info-value">{{ exhibit.location_in_museum|default:"—" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Статус:</span>
+                        <span class="info-value">
+                            {% if exhibit.is_on_display %}На экспозиции{% else %}В фондах{% endif %}
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Состояние:</span>
+                        <span class="info-value">{{ exhibit.condition|default:"—" }}</span>
+                    </div>
+                </div>
+                
+                <div class="info-section" style="grid-column: 1/-1;">
+                    <h2 class="section-title">Описание</h2>
+                    <p>{{ exhibit.description|default:"Описание отсутствует" }}</p>
+                </div>
+                
+                <!-- История -->
+                <div class="info-section" style="grid-column: 1/-1;">
+                    <h2 class="section-title">История экспоната</h2>
+                    {% if history %}
+                        {% for event in history %}
+                            <div class="history-item">
+                                <div class="history-date">{{ event.event_date }}</div>
+                                <div class="history-type 
+                                    {% if event.event_type == 'restoration' %}type-restoration
+                                    {% elif event.event_type == 'exhibition' %}type-exhibition
+                                    {% elif event.event_type == 'write_off' %}type-write_off
+                                    {% else %}type-move{% endif %}">
+                                    {{ event.get_event_type_display|default:event.event_type }}
+                                </div>
+                                <div class="history-desc">{{ event.description }}</div>
+                                {% if event.document_reference %}
+                                    <div class="history-doc">Документ: {{ event.document_reference }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>История отсутствует</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ exhibit.exhibit_name }} — Музей</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #79443B;
+            min-height: 100vh;
+        }
+
+        .header {
+            background-color: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            color: #79443B;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .back-link {
+            color: #79443B;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px 40px;
+        }
+
+        .detail-card {
+            background-color: white;
+            border-radius: 30px;
+            padding: 40px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .exhibit-title {
+            color: #79443B;
+            font-size: 32px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #79443B;
+            padding-bottom: 10px;
+        }
+
+        .exhibit-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .main-photo {
+            width: 100%;
+            height: 400px;
+            background-color: #f0f0f0;
+            border-radius: 20px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 2px solid #79443B;
+        }
+
+        .info-section {
+            background-color: #f8f8f8;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .section-title {
+            color: #79443B;
+            font-size: 20px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            width: 120px;
+        }
+
+        .info-value {
+            color: #333;
+            flex: 1;
+        }
+
+        .qr-section {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #79443B;
+        }
+
+        .qr-placeholder {
+            width: 200px;
+            height: 200px;
+            margin: 20px auto;
+            background-color: #f0f0f0;
+            border: 2px dashed #79443B;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav-bar">
+            <div class="logo">МУЗЕЙ</div>
+            <a href="{% url 'public_exhibit_list' %}" class="back-link">← Назад к списку</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="detail-card">
+            <h1 class="exhibit-title">{{ exhibit.exhibit_name }}</h1>
+
+            <div class="exhibit-content">
+                <div>
+                    {% if photos %}
+                        <div class="main-photo" style="background-image: url('{{ photos.0.photo_path }}')"></div>
+                    {% else %}
+                        <div class="main-photo" style="background-image: url('https://via.placeholder.com/800x400/79443B/ffffff?text=Нет+фото')"></div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <div class="info-section">
+                        <h2 class="section-title">Об экспонате</h2>
+                        <div class="info-row">
+                            <span class="info-label">Автор:</span>
+                            <span class="info-value">{{ exhibit.author_name|default:"Неизвестен" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Датировка:</span>
+                            <span class="info-value">{{ exhibit.dating|default:"—" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Материалы:</span>
+                            <span class="info-value">{{ exhibit.all_materials }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Техника:</span>
+                            <span class="info-value">{{ exhibit.technique_name|default:"—" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Размеры:</span>
+                            <span class="info-value">{{ exhibit.dimensions|default:"—" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Инв. номер:</span>
+                            <span class="info-value">{{ exhibit.inventory_number }}</span>
+                        </div>
+                    </div>
+
+                    {% if exhibit.description %}
+                    <div class="info-section" style="margin-top: 20px;">
+                        <h2 class="section-title">Описание</h2>
+                        <p>{{ exhibit.description }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="qr-section">
+                <h2 class="section-title">Поделиться экспонатом</h2>
+                <p>Отсканируйте QR-код, чтобы открыть эту страницу на телефоне</p>
+                {% if qr_image %}
+                    <div style="text-align: center; margin: 20px 0;">
+                        <img src="data:image/png;base64,{{ qr_image }}" 
+                            style="width: 200px; height: 200px; border: 2px solid #79443B; border-radius: 10px; padding: 10px; background: white;">
+                    </div>
+                    <p style="font-size: 12px; color: #666; word-break: break-all;">{{ qr_data }}</p>
+                {% else %}
+                    <div class="qr-placeholder">QR-код временно недоступен</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

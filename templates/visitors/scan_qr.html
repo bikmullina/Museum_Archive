@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Сканер QR-кода</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #79443B;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background-color: white;
+            padding: 15px 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .back-link {
+            position: absolute;
+            left: 20px;
+            top: 15px;
+            color: #79443B;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        .logo {
+            color: #79443B;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        h1 {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .scanner-container {
+            background-color: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #video {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            border-radius: 10px;
+            background-color: #333;
+        }
+
+        .scan-btn {
+            background-color: #79443B;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+
+        .result {
+            color: #333;
+            font-size: 16px;
+            word-break: break-all;
+            text-align: center;
+        }
+
+        .manual-input {
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        .manual-input input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #79443B;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .manual-input button {
+            width: 100%;
+            margin-top: 10px;
+            padding: 12px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="{% url 'public_exhibit_list' %}" class="back-link">← Назад</a>
+        <span class="logo">СКАНЕР QR</span>
+    </div>
+
+    <div class="container">
+        <h1>Наведите камеру на QR-код</h1>
+
+        <div class="scanner-container">
+            <video id="video" autoplay playsinline></video>
+            <button class="scan-btn" id="scanBtn">📷 Открыть камеру</button>
+            <div class="result" id="result"></div>
+
+            <div class="manual-input">
+                <p style="color: #79443B; margin-bottom: 10px;">Или введите ID экспоната вручную:</p>
+                <input type="number" id="exhibitId" placeholder="Введите ID экспоната">
+                <button onclick="goToExhibit()">Перейти к экспонату</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script>
+        const video = document.getElementById('video');
+        const scanBtn = document.getElementById('scanBtn');
+        const resultDiv = document.getElementById('result');
+        
+        let scanning = false;
+        let stream = null;
+
+        scanBtn.addEventListener('click', async () => {
+            if (scanning) {
+                // Останавливаем камеру
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                video.style.display = 'none';
+                scanBtn.textContent = '📷 Открыть камеру';
+                scanning = false;
+                return;
+            }
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                scanBtn.textContent = '⏹ Остановить камеру';
+                scanning = true;
+                
+                // Запускаем сканирование
+                requestAnimationFrame(scanFrame);
+            } catch (err) {
+                alert('Не удалось открыть камеру: ' + err.message);
+            }
+        });
+
+        function scanFrame() {
+            if (!scanning) return;
+            
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, canvas.width, canvas.height);
+                
+                if (code) {
+                    resultDiv.textContent = 'Найден QR: ' + code.data;
+                    
+                    // Пытаемся извлечь ID из ссылки
+                    const match = code.data.match(/\/exhibit\/(\d+)/);
+                    if (match) {
+                        const id = match[1];
+                        window.location.href = `/visitors/exhibit/${id}/`;
+                    } else {
+                        // Если не ссылка, пробуем просто ID
+                        const id = parseInt(code.data);
+                        if (!isNaN(id)) {
+                            window.location.href = `/visitors/exhibit/${id}/`;
+                        }
+                    }
+                }
+            }
+            
+            requestAnimationFrame(scanFrame);
+        }
+
+        function goToExhibit() {
+            const id = document.getElementById('exhibitId').value;
+            if (id) {
+                window.location.href = `/visitors/exhibit/${id}/`;
+            }
+        }
+
+        // Останавливаем камеру при уходе со страницы
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>

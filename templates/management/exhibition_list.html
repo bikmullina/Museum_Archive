@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>АРХИВ - Выставки</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #79443B;
+            min-height: 100vh;
+        }
+
+        .header {
+            background-color: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            color: #79443B;
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-btn {
+            background-color: #79443B;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .nav-btn:hover {
+            background-color: #5a312b;
+            transform: translateY(-2px);
+        }
+
+        .logout-btn {
+            background-color: #e74c3c;
+        }
+
+        .logout-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px 40px;
+        }
+
+        .page-title {
+            color: white;
+            font-size: 36px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .add-btn {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .add-btn:hover {
+            background-color: #219a52;
+            transform: translateY(-2px);
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .filter-btn {
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .filter-btn.active {
+            background-color: #27ae60;
+        }
+
+        .exhibitions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        .exhibition-card {
+            background-color: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+
+        .exhibition-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .exhibition-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .exhibition-name {
+            color: #79443B;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .exhibition-status {
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .status-inactive {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .exhibition-dates {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .exhibition-details {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .exhibition-details p {
+            margin: 5px 0;
+        }
+
+        .exhibits-count {
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+            color: #79443B;
+            font-weight: 500;
+        }
+
+        .no-data {
+            grid-column: 1/-1;
+            text-align: center;
+            padding: 50px;
+            background-color: white;
+            border-radius: 30px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav-bar">
+            <div class="logo">АРХИВ</div>
+            <div class="nav-links">
+                <a href="{% url 'exhibit_list' %}" class="nav-btn">На главную</a>
+                <a href="{% url 'management_menu' %}" class="nav-btn">Управление</a>
+                <a href="{% url 'add_exhibit' %}" class="nav-btn">Добавить экспонат</a>
+                <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="nav-btn logout-btn">Выйти</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="action-bar">
+            <h1 class="page-title">Выставки</h1>
+            <div style="display: flex; gap: 10px;">
+                <div class="filter-bar">
+                    <a href="{% url 'exhibition_list' %}" class="filter-btn {% if not show_all %}active{% endif %}">Активные</a>
+                    <a href="{% url 'exhibition_list' %}?show_all=1" class="filter-btn {% if show_all %}active{% endif %}">Все</a>
+                </div>
+                <a href="{% url 'add_exhibition' %}" class="add-btn">+ Новая выставка</a>
+            </div>
+        </div>
+
+        <div class="exhibitions-grid">
+            {% for exhibition in exhibitions %}
+            <div class="exhibition-card">
+                <div class="exhibition-header">
+                    <span class="exhibition-name">{{ exhibition.name }}</span>
+                    <span class="exhibition-status {% if exhibition.is_active %}status-active{% else %}status-inactive{% endif %}">
+                        {% if exhibition.is_active %}Активна{% else %}Завершена{% endif %}
+                    </span>
+                </div>
+                <div class="exhibition-dates">
+                    {{ exhibition.start_date }} — {{ exhibition.end_date }}
+                </div>
+                <div class="exhibition-details">
+                    <p><strong>Место:</strong> {{ exhibition.location|default:"—" }}</p>
+                    <p><strong>Куратор:</strong> {{ exhibition.curator|default:"—" }}</p>
+                    <p>{{ exhibition.description|truncatechars:100 }}</p>
+                </div>
+                <div class="exhibits-count">
+                    Экспонатов: {{ exhibition.exhibits_count }}
+                </div>
+            </div>
+            {% empty %}
+            <div class="no-data">
+                <p>Пока нет выставок</p>
+                <a href="{% url 'add_exhibition' %}" class="add-btn" style="margin-top: 20px;">Создать первую выставку</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
