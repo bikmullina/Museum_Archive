@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АРХИВ - Добавить экспонат</title>
+    <title>АРХИВ - Редактировать экспонат</title>
     <style>
         * {
             margin: 0;
@@ -270,7 +270,7 @@
         }
 
         .submit-btn {
-            background-color: #27ae60;
+            background-color: #2980b9;
             color: white;
             border: none;
             padding: 15px 40px;
@@ -283,12 +283,12 @@
         }
 
         .submit-btn:hover {
-            background-color: #219a52;
+            background-color: #2471a3;
             transform: translateY(-2px);
         }
 
         .cancel-btn {
-            background-color: #e74c3c;
+            background-color: #95a5a6;
             color: white;
             border: none;
             padding: 15px 40px;
@@ -303,7 +303,7 @@
         }
 
         .cancel-btn:hover {
-            background-color: #c0392b;
+            background-color: #7f8c8d;
             transform: translateY(-2px);
         }
 
@@ -361,6 +361,7 @@
         <div class="nav-bar">
             <div class="logo">АРХИВ</div>
             <div class="nav-links">
+                <a href="{% url 'exhibit_detail' exhibit_id %}" class="nav-btn">Назад к экспонату</a>
                 <a href="{% url 'exhibit_list' %}" class="nav-btn">На главную</a>
                 <form method="post" action="{% url 'logout' %}" style="display: inline;">
                     {% csrf_token %}
@@ -372,7 +373,7 @@
 
     <div class="container">
         <div class="form-card">
-            <h1 class="page-title">Добавление нового экспоната</h1>
+            <h1 class="page-title">Редактирование экспоната</h1>
 
             {% if messages %}
             <div class="messages">
@@ -389,7 +390,7 @@
                 <ul id="validationList"></ul>
             </div>
 
-            <form id="exhibitForm" method="post" enctype="multipart/form-data" novalidate>
+            <form id="exhibitForm" method="post" novalidate>
                 {% csrf_token %}
 
                 <!-- Основная информация -->
@@ -401,14 +402,14 @@
                             <label class="required">Инвентарный номер</label>
                             <input type="text" id="inventoryNumber" name="inventory_number" required 
                                    placeholder="Например: КП-001/2025" maxlength="50"
-                                   value="{{ form_data.inventory_number|default:'' }}">
+                                   value="{{ form_data.inventory_number }}">
                             <div class="error-text" id="inventoryNumberError">Введите инвентарный номер (до 50 символов)</div>
                         </div>
                         <div class="form-group">
                             <label>Учетный шифр</label>
                             <input type="text" id="objectCode" name="object_code" 
                                    placeholder="Например: Ж-1254" maxlength="50"
-                                   value="{{ form_data.object_code|default:'' }}">
+                                   value="{{ form_data.object_code }}">
                             <div class="error-text" id="objectCodeError">Максимальная длина: 50 символов</div>
                         </div>
                     </div>
@@ -417,14 +418,14 @@
                         <label class="required">Название экспоната</label>
                         <input type="text" id="exhibitName" name="exhibit_name" required 
                                placeholder="Введите название" maxlength="255"
-                               value="{{ form_data.exhibit_name|default:'' }}">
+                               value="{{ form_data.exhibit_name }}">
                         <div class="error-text" id="exhibitNameError">Введите название экспоната (до 255 символов)</div>
                     </div>
 
                     <div class="form-group">
                         <label>Описание</label>
                         <textarea id="description" name="description" 
-                                  placeholder="Введите описание экспоната..." maxlength="2000">{{ form_data.description|default:'' }}</textarea>
+                                  placeholder="Введите описание экспоната..." maxlength="2000">{{ form_data.description }}</textarea>
                         <div class="error-text" id="descriptionError">Максимальная длина: 2000 символов</div>
                         <small style="color: #666; display: block; margin-top: 5px;" id="descriptionCounter">0/2000</small>
                     </div>
@@ -438,8 +439,9 @@
                         <label>Автор</label>
                         <div class="author-search-container">
                             <div class="author-input-wrapper">
-                                <input type="text" id="authorSearch" placeholder="Начните вводить имя автора..." autocomplete="off">
-                                <input type="hidden" id="authorId" name="author_id" value="{{ form_data.author_id|default:'' }}">
+                                <input type="text" id="authorSearch" placeholder="Начните вводить имя автора..." autocomplete="off"
+                                       value="{{ form_data.author_name }}">
+                                <input type="hidden" id="authorId" name="author_id" value="{{ form_data.author_id }}">
                                 <button type="button" class="add-author-btn" onclick="toggleNewAuthorForm()">+ Новый автор</button>
                             </div>
                             <div class="author-dropdown" id="authorDropdown"></div>
@@ -466,7 +468,7 @@
                     <div class="form-group">
                         <label>Датировка</label>
                         <input type="text" id="dating" name="dating" placeholder="Например: 1880-е гг." maxlength="100"
-                               value="{{ form_data.dating|default:'' }}">
+                               value="{{ form_data.dating }}">
                         <div class="error-text" id="datingError">Максимальная длина: 100 символов</div>
                     </div>
                 </div>
@@ -504,12 +506,12 @@
                         <div class="form-group">
                             <label>Размеры</label>
                             <input type="text" id="dimensions" name="dimensions" placeholder="Например: 50x70 см" maxlength="100"
-                                   value="{{ form_data.dimensions|default:'' }}">
+                                   value="{{ form_data.dimensions }}">
                         </div>
                         <div class="form-group">
                             <label>Вес (кг)</label>
                             <input type="number" id="weight" name="weight" step="0.001" min="0" placeholder="0.000"
-                                   value="{{ form_data.weight|default:'' }}">
+                                   value="{{ form_data.weight }}">
                             <div class="error-text" id="weightError">Вес должен быть положительным числом</div>
                         </div>
                     </div>
@@ -548,14 +550,14 @@
                         <div class="form-group">
                             <label class="required">Дата поступления</label>
                             <input type="date" id="acquisitionDate" name="acquisition_date" required
-                                   value="{{ form_data.acquisition_date|default:'' }}">
+                                   value="{{ form_data.acquisition_date }}">
                             <div class="error-text" id="acquisitionDateError">Выберите дату поступления</div>
                         </div>
                         <div class="form-group">
                             <label>От кого поступил</label>
                             <input type="text" id="sourceOfAcquisition" name="source_of_acquisition" 
                                    placeholder="ФИО или организация" maxlength="255"
-                                   value="{{ form_data.source_of_acquisition|default:'' }}">
+                                   value="{{ form_data.source_of_acquisition }}">
                         </div>
                     </div>
 
@@ -563,7 +565,7 @@
                         <label>Документ (акт/договор)</label>
                         <input type="text" id="documentReference" name="document_reference" 
                                placeholder="Например: Акт приема №45 от 15.03.2025" maxlength="255"
-                               value="{{ form_data.document_reference|default:'' }}">
+                               value="{{ form_data.document_reference }}">
                     </div>
                 </div>
 
@@ -576,26 +578,20 @@
                             <label>Место хранения</label>
                             <input type="text" id="locationInMuseum" name="location_in_museum" 
                                    placeholder="Например: Зал №1" maxlength="100"
-                                   value="{{ form_data.location_in_museum|default:'' }}">
+                                   value="{{ form_data.location_in_museum }}">
                         </div>
                         <div class="form-group">
                             <label>Состояние</label>
                             <input type="text" id="condition" name="condition" placeholder="Например: Хорошее" maxlength="100"
-                                   value="{{ form_data.condition|default:'' }}">
+                                   value="{{ form_data.condition }}">
                         </div>
                     </div>
 
-                    
                     <div class="form-group">
-                        <label>Фото экспоната</label>
-                        <input type="file" id="photo" name="photo" accept="image/*" 
-                            onchange="previewImage(this)">
-                        <small style="color: #666; display: block; margin-top: 5px;">
-                            Поддерживаются форматы: JPG, PNG, GIF. Максимальный размер: 5 МБ
-                        </small>
-                        <div id="photoPreview" style="margin-top: 10px; display: none;">
-                            <img id="previewImg" style="max-width: 200px; max-height: 200px; border-radius: 10px;">
-                            </div>
+                        <label>Ссылка на изображение</label>
+                        <input type="text" id="photoUrl" name="photo_url" placeholder="https://... или /media/..."
+                               value="{{ form_data.photo_url }}">
+                        <small style="color: #666; display: block; margin-top: 5px;">Можно вставить ссылку на фото или загрузить позже</small>
                     </div>
 
                     <div class="checkbox-group">
@@ -605,26 +601,27 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="submit-btn" id="submitBtn">Сохранить экспонат</button>
-                    <a href="{% url 'exhibit_list' %}" class="cancel-btn">Отмена</a>
+                    <button type="submit" class="submit-btn" id="submitBtn">Сохранить изменения</button>
+                    <a href="{% url 'exhibit_detail' exhibit_id %}" class="cancel-btn">Отмена</a>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
-        // Установка текущей даты по умолчанию
+        // Счётчик символов описания
         document.addEventListener('DOMContentLoaded', function() {
-            const acquisitionDate = document.getElementById('acquisitionDate');
-            if (!acquisitionDate.value) {
-                const today = new Date().toISOString().split('T')[0];
-                acquisitionDate.value = today;
-            }
-            
-            // Счётчик символов описания
             const description = document.getElementById('description');
             if (description.value) {
                 document.getElementById('descriptionCounter').textContent = `${description.value.length}/2000`;
+            }
+            
+            // Если есть автор, устанавливаем его
+            const authorId = document.getElementById('authorId').value;
+            if (authorId) {
+                selectedAuthorId = parseInt(authorId);
+                document.getElementById('authorSearch').setAttribute('data-selected-name', 
+                    document.getElementById('authorSearch').value);
             }
         });
 
@@ -893,19 +890,6 @@
             }
             return cookieValue;
         }
-        function previewImage(input) {
-        const preview = document.getElementById('photoPreview');
-        const previewImg = document.getElementById('previewImg');
-    
-        if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            previewImg.src = e.target.result;
-            preview.style.display = 'block';
-        }
-        reader.readAsDataURL(input.files[0]);
-    }
-}
     </script>
 </body>
 </html>

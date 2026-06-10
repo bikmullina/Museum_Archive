@@ -129,7 +129,7 @@
 
         <div class="scanner-container">
             <video id="video" autoplay playsinline></video>
-            <button class="scan-btn" id="scanBtn">📷 Открыть камеру</button>
+            <button class="scan-btn" id="scanBtn">Открыть камеру</button>
             <div class="result" id="result"></div>
 
             <div class="manual-input">
@@ -156,7 +156,7 @@
                     stream.getTracks().forEach(track => track.stop());
                 }
                 video.style.display = 'none';
-                scanBtn.textContent = '📷 Открыть камеру';
+                scanBtn.textContent = 'Открыть камеру';
                 scanning = false;
                 return;
             }

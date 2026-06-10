@@ -72,7 +72,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 0 20px 40px;
         }
@@ -89,6 +89,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
         .add-btn {
@@ -155,6 +157,62 @@
             padding: 40px;
             color: #666;
         }
+
+        .download-btn {
+            background-color: #3498db;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 12px;
+            display: inline-block;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .download-btn:hover {
+            background-color: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-completed {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .status-inprogress {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                flex-wrap: wrap;
+            }
+            
+            .action-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .add-btn {
+                text-align: center;
+            }
+            
+            th, td {
+                padding: 8px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -187,9 +245,11 @@
                         <th>Экспонат</th>
                         <th>Инв. номер</th>
                         <th>Дата начала</th>
+                        <th>Статус</th>
                         <th>Описание</th>
                         <th>Документ</th>
                         <th>Дата создания</th>
+                        <th>Действия</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -201,10 +261,22 @@
                             </a>
                         </td>
                         <td>{{ restoration.inventory_number }}</td>
-                        <td>{{ restoration.start_date }}</td>
+                        <td>{{ restoration.start_date|date:"d.m.Y" }}</td>
+                        <td>
+                            {% if restoration.end_date %}
+                                <span class="status-badge status-completed">Завершена</span>
+                            {% else %}
+                                <span class="status-badge status-inprogress">В процессе</span>
+                            {% endif %}
+                        </td>
                         <td>{{ restoration.description|truncatechars:50 }}</td>
                         <td>{{ restoration.document_reference|default:"—" }}</td>
                         <td>{{ restoration.created_at|date:"d.m.Y" }}</td>
+                        <td>
+                            <a href="{% url 'download_restoration_pdf' restoration.id %}" class="download-btn">
+                                📄 Скачать PDF
+                            </a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -212,7 +284,7 @@
             {% else %}
             <div class="no-data">
                 <p>Пока нет записей о реставрациях</p>
-                <a href="{% url 'add_restoration' %}" class="add-btn" style="margin-top: 20px;">Добавить первую реставрацию</a>
+                <a href="{% url 'add_restoration' %}" class="add-btn" style="margin-top: 20px; display: inline-block;">Добавить первую реставрацию</a>
             </div>
             {% endif %}
         </div>

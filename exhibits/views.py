@@ -1,16 +1,21 @@
 from datetime import datetime
 import os
+import json
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import connection
 from django.contrib.auth import authenticate, login
+from django.views.decorators.http import require_GET
+from django.views.decorators.csrf import csrf_exempt
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.conf import settings  # <-- ДОБАВЛЕНО
+from storages.backends.s3boto3 import S3Boto3Storage
 
-
-from django.contrib.auth import authenticate, login
 
 def custom_login(request):
     """Кастомная страница входа"""
@@ -26,9 +31,10 @@ def custom_login(request):
     
     return render(request, 'registration/login.html')
 
+
 @login_required
 def exhibit_list(request):
-    """Список всех экспонатов с поиском по названию"""
+    """Список всех экспонатов с поиском и фильтрацией"""
     search_query = request.GET.get('search', '')
     
     with connection.cursor() as cursor:
@@ -66,19 +72,18 @@ def exhibit_list(request):
         columns = [col[0] for col in cursor.description]
         exhibits = [dict(zip(columns, row)) for row in cursor.fetchall()]
         
-        # Для каждого экспоната получаем авторов и материалы
+        # Получаем дополнительные данные для каждого экспоната
         for exhibit in exhibits:
-            # Получаем авторов
+            # Автор
             cursor.execute("""
                 SELECT a.full_name 
                 FROM authors a
-                JOIN exhibits e ON e.author_id = a.id
-                WHERE e.id = %s
+                WHERE a.id = (SELECT author_id FROM exhibits WHERE id = %s)
             """, [exhibit['id']])
-            author_row = cursor.fetchone()
-            exhibit['author_name'] = author_row[0] if author_row else 'Неизвестен'
+            row = cursor.fetchone()
+            exhibit['author_name'] = row[0] if row else 'Неизвестен'
             
-            # Получаем материалы (может быть несколько)
+            # Материалы
             cursor.execute("""
                 SELECT m.name 
                 FROM materials m
@@ -88,39 +93,251 @@ def exhibit_list(request):
             """, [exhibit['id']])
             materials = cursor.fetchall()
             if materials:
-                # Объединяем все материалы через запятую
                 exhibit['material_names'] = ', '.join([m[0] for m in materials])
             else:
-                # Если нет в exhibit_materials, пробуем получить из material_id
                 cursor.execute("""
                     SELECT m.name 
                     FROM materials m
                     JOIN exhibits e ON e.material_id = m.id
                     WHERE e.id = %s
                 """, [exhibit['id']])
-                material_row = cursor.fetchone()
-                exhibit['material_names'] = material_row[0] if material_row else 'Не указан'
+                row = cursor.fetchone()
+                exhibit['material_names'] = row[0] if row else 'Не указан'
             
-            # Получаем фото
+            # Фото
             cursor.execute("""
                 SELECT photo_path FROM exhibit_photos 
                 WHERE exhibit_id = %s AND is_main = TRUE 
                 LIMIT 1
             """, [exhibit['id']])
-            photo_row = cursor.fetchone()
-            exhibit['main_photo'] = photo_row[0] if photo_row else None
+            row = cursor.fetchone()
+            if row and row[0]:
+                photo_path = row[0]
+                if not photo_path.startswith(('http://', 'https://')):
+                    photo_path = settings.MEDIA_URL + photo_path
+                exhibit['main_photo'] = photo_path
+            else:
+                exhibit['main_photo'] = None
+        
+        # Получаем данные для фильтров
+        cursor.execute("SELECT id, full_name FROM authors ORDER BY full_name")
+        authors = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, name FROM materials ORDER BY name")
+        materials = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, name FROM techniques ORDER BY name")
+        techniques = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
     
     return render(request, 'exhibit_list.html', {
         'exhibits': exhibits,
         'search_query': search_query,
+        'authors': authors,
+        'materials': materials,
+        'techniques': techniques,
     })
 
-# Существующее представление для добавления экспоната
+
+@login_required
+@require_GET
+def api_exhibit_list(request):
+    """API для живого поиска и фильтрации"""
+    search_query = request.GET.get('search', '')
+    author = request.GET.get('author', '')
+    material = request.GET.get('material', '')
+    technique = request.GET.get('technique', '')
+    location = request.GET.get('location', '')
+    dating = request.GET.get('dating', '')
+    status = request.GET.get('status', '')
+    
+    with connection.cursor() as cursor:
+        sql = """
+            SELECT
+                e.id,
+                e.inventory_number,
+                e.exhibit_name,
+                e.dating,
+                e.dimensions,
+                e.description,
+                e.location_in_museum,
+                e.is_on_display,
+                e.created_at
+            FROM exhibits e
+            LEFT JOIN authors a ON e.author_id = a.id
+            LEFT JOIN materials m ON e.material_id = m.id
+            LEFT JOIN techniques t ON e.technique_id = t.id
+            LEFT JOIN exhibit_materials em ON e.id = em.exhibit_id
+            LEFT JOIN materials m2 ON em.material_id = m2.id
+            WHERE 1=1
+        """
+        params = []
+        
+        if search_query:
+            sql += " AND e.exhibit_name ILIKE %s"
+            params.append(f'%{search_query}%')
+        
+        if author:
+            sql += " AND a.full_name = %s"
+            params.append(author)
+        
+        if material:
+            sql += " AND (m.name = %s OR m2.name = %s)"
+            params.extend([material, material])
+        
+        if technique:
+            sql += " AND t.name = %s"
+            params.append(technique)
+        
+        if location:
+            sql += " AND e.location_in_museum ILIKE %s"
+            params.append(f'%{location}%')
+        
+        if dating:
+            sql += " AND e.dating ILIKE %s"
+            params.append(f'%{dating}%')
+        
+        if status == 'display':
+            sql += " AND e.is_on_display = TRUE"
+        elif status == 'storage':
+            sql += " AND e.is_on_display = FALSE"
+        
+        sql += " GROUP BY e.id ORDER BY e.created_at DESC"
+        
+        cursor.execute(sql, params)
+        
+        columns = [col[0] for col in cursor.description]
+        exhibits = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        for exhibit in exhibits:
+            cursor.execute("""
+                SELECT a.full_name 
+                FROM authors a
+                WHERE a.id = (SELECT author_id FROM exhibits WHERE id = %s)
+            """, [exhibit['id']])
+            row = cursor.fetchone()
+            exhibit['author_name'] = row[0] if row else 'Неизвестен'
+            
+            cursor.execute("""
+                SELECT m.name 
+                FROM materials m
+                JOIN exhibit_materials em ON m.id = em.material_id
+                WHERE em.exhibit_id = %s
+                ORDER BY m.name
+            """, [exhibit['id']])
+            materials = cursor.fetchall()
+            if materials:
+                exhibit['material_names'] = ', '.join([m[0] for m in materials])
+            else:
+                cursor.execute("""
+                    SELECT m.name 
+                    FROM materials m
+                    JOIN exhibits e ON e.material_id = m.id
+                    WHERE e.id = %s
+                """, [exhibit['id']])
+                row = cursor.fetchone()
+                exhibit['material_names'] = row[0] if row else 'Не указан'
+            
+            cursor.execute("""
+                SELECT photo_path FROM exhibit_photos 
+                WHERE exhibit_id = %s AND is_main = TRUE 
+                LIMIT 1
+            """, [exhibit['id']])
+            row = cursor.fetchone()
+            if row and row[0]:
+                photo_path = row[0]
+                if not photo_path.startswith(('http://', 'https://')):
+                    photo_path = settings.MEDIA_URL + photo_path
+                exhibit['main_photo'] = photo_path
+            else:
+                exhibit['main_photo'] = None
+    
+    return render(request, 'exhibit_cards.html', {
+        'exhibits': exhibits,
+        'search_query': search_query,
+    })
+
+
+@login_required
+def api_authors(request):
+    """API для поиска авторов"""
+    search_query = request.GET.get('search', '')
+    
+    with connection.cursor() as cursor:
+        if search_query:
+            cursor.execute("""
+                SELECT id, full_name, birth_year, death_year
+                FROM authors
+                WHERE full_name ILIKE %s
+                ORDER BY full_name
+                LIMIT 10
+            """, [f'%{search_query}%'])
+        else:
+            cursor.execute("""
+                SELECT id, full_name, birth_year, death_year
+                FROM authors
+                ORDER BY full_name
+                LIMIT 10
+            """)
+        
+        columns = [col[0] for col in cursor.description]
+        authors = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    
+    return JsonResponse({'authors': authors})
+
+
+@login_required
+@csrf_exempt
+def api_add_author(request):
+    """API для добавления нового автора"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            full_name = data.get('full_name', '').strip()
+            birth_year = data.get('birth_year') or None
+            death_year = data.get('death_year') or None
+            
+            if not full_name:
+                return JsonResponse({'success': False, 'error': 'Имя автора обязательно'})
+            
+            with connection.cursor() as cursor:
+                # Проверяем, существует ли уже такой автор
+                cursor.execute("""
+                    SELECT id FROM authors WHERE full_name = %s
+                """, [full_name])
+                existing = cursor.fetchone()
+                
+                if existing:
+                    return JsonResponse({
+                        'success': True, 
+                        'author_id': existing[0],
+                        'message': 'Автор уже существует'
+                    })
+                
+                # Добавляем нового автора
+                cursor.execute("""
+                    INSERT INTO authors (full_name, birth_year, death_year)
+                    VALUES (%s, %s, %s)
+                    RETURNING id
+                """, [full_name, birth_year, death_year])
+                
+                author_id = cursor.fetchone()[0]
+                
+                return JsonResponse({
+                    'success': True, 
+                    'author_id': author_id,
+                    'message': 'Автор успешно добавлен'
+                })
+                
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Метод не поддерживается'})
+
+
 @login_required
 def add_exhibit(request):
     """Добавление нового экспоната"""
     if request.method == 'POST':
-        # Получаем данные из формы
         inventory_number = request.POST.get('inventory_number')
         object_code = request.POST.get('object_code')
         exhibit_name = request.POST.get('exhibit_name')
@@ -139,56 +356,139 @@ def add_exhibit(request):
         condition = request.POST.get('condition')
         description = request.POST.get('description')
         is_on_display = request.POST.get('is_on_display') == 'on'
-        photo_url = request.POST.get('photo_url')
         
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO exhibits (
-                    inventory_number, object_code, exhibit_name, author_id, dating,
-                    material_id, technique_id, dimensions, weight, authenticity_id,
-                    acquisition_method_id, acquisition_date, source_of_acquisition,
-                    document_reference, location_in_museum, condition, description,
-                    is_on_display, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, [inventory_number, object_code, exhibit_name, author_id, dating,
-                  material_id, technique_id, dimensions, weight, authenticity_id,
-                  acquisition_method_id, acquisition_date, source_of_acquisition,
-                  document_reference, location_in_museum, condition, description,
-                  is_on_display])
-
-            # После добавления экспоната получаем его ID
-            cursor.execute("SELECT LASTVAL()")
-            exhibit_id = cursor.fetchone()[0]
-
-            # Сохраняем фото, если ссылка передана
-            if photo_url:
+        # Получаем файл
+        photo_file = request.FILES.get('photo')
+        
+        # Диагностика
+        print(f"=== ДИАГНОСТИКА ЗАГРУЗКИ ФАЙЛА ===")
+        print(f"Файл получен: {photo_file.name if photo_file else 'Нет файла'}")
+        print(f"IS_PRODUCTION: {settings.IS_PRODUCTION}")
+        print(f"MEDIA_URL: {settings.MEDIA_URL}")
+        
+        # Базовая валидация
+        errors = []
+        if not inventory_number:
+            errors.append('Инвентарный номер обязателен')
+        if not exhibit_name:
+            errors.append('Название экспоната обязательно')
+        if not acquisition_date:
+            errors.append('Дата поступления обязательна')
+        
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return redirect('add_exhibit')
+        
+        # ПОДГОТАВЛИВАЕМ ФАЙЛ ДО СОХРАНЕНИЯ ЭКСПОНАТА
+        saved_photo_path = None
+        if photo_file:
+            # Валидация файла
+            valid_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+            ext = os.path.splitext(photo_file.name)[1].lower()
+            
+            if ext not in valid_extensions:
+                messages.error(request, f'Неподдерживаемый формат файла. Разрешены: {", ".join(valid_extensions)}')
+                return redirect('add_exhibit')
+            
+            if photo_file.size > 5 * 1024 * 1024:
+                messages.error(request, 'Файл слишком большой. Максимальный размер: 5 МБ')
+                return redirect('add_exhibit')
+            
+            # Генерируем уникальное имя файла
+            filename = f"exhibits/{inventory_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+            print(f"Попытка сохранить файл: {filename}")
+            
+            try:
+                # ПРИНУДИТЕЛЬНО создаём storage с настройками из settings
+                from storages.backends.s3boto3 import S3Boto3Storage
+                
+                s3_storage = S3Boto3Storage(
+                    bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                    endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+                    access_key=settings.AWS_ACCESS_KEY_ID,
+                    secret_key=settings.AWS_SECRET_ACCESS_KEY,
+                    default_acl='public-read',
+                )
+                
+                # Сохраняем файл
+                saved_photo_path = s3_storage.save(filename, ContentFile(photo_file.read()))
+                print(f"Файл сохранён через S3Boto3Storage: {saved_photo_path}")
+                
+                # Проверяем существование
+                if s3_storage.exists(saved_photo_path):
+                    print(f"✅ Файл подтверждён в хранилище")
+                else:
+                    print(f"❌ Файл НЕ найден после сохранения!")
+                    saved_photo_path = None
+                    
+            except Exception as e:
+                print(f"❌ Ошибка при сохранении файла: {e}")
+                messages.error(request, f'Ошибка при сохранении фото: {e}')
+                return redirect('add_exhibit')
+        
+        try:
+            with connection.cursor() as cursor:
+                # Проверяем уникальность инвентарного номера
                 cursor.execute("""
-                    INSERT INTO exhibit_photos (exhibit_id, photo_path, is_main, uploaded_at)
-                    VALUES (%s, %s, TRUE, CURRENT_TIMESTAMP)
-                """, [exhibit_id, photo_url])
+                    SELECT id, exhibit_name FROM exhibits WHERE inventory_number = %s
+                """, [inventory_number])
+                existing = cursor.fetchone()
+                
+                if existing:
+                    messages.error(request, f'Экспонат с инвентарным номером "{inventory_number}" уже существует: "{existing[1]}"')
+                    return redirect('add_exhibit')
+                
+                # Вставляем новый экспонат
+                cursor.execute("""
+                    INSERT INTO exhibits (
+                        inventory_number, object_code, exhibit_name, author_id, dating,
+                        material_id, technique_id, dimensions, weight, authenticity_id,
+                        acquisition_method_id, acquisition_date, source_of_acquisition,
+                        document_reference, location_in_museum, condition, description,
+                        is_on_display, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, [inventory_number, object_code, exhibit_name, author_id, dating,
+                      material_id, technique_id, dimensions, weight, authenticity_id,
+                      acquisition_method_id, acquisition_date, source_of_acquisition,
+                      document_reference, location_in_museum, condition, description,
+                      is_on_display])
 
-        messages.success(request, 'Экспонат успешно добавлен')
-        return redirect('exhibit_list')
+                cursor.execute("SELECT LASTVAL()")
+                exhibit_id = cursor.fetchone()[0]
+                print(f"Экспонат создан с ID: {exhibit_id}")
+
+                # Сохраняем путь к фото в БД
+                if saved_photo_path:
+                    cursor.execute("""
+                        INSERT INTO exhibit_photos (exhibit_id, photo_path, is_main, uploaded_at)
+                        VALUES (%s, %s, TRUE, CURRENT_TIMESTAMP)
+                    """, [exhibit_id, saved_photo_path])
+                    print(f"Путь к фото сохранён в БД: {saved_photo_path}")
+
+            messages.success(request, 'Экспонат успешно добавлен')
+            return redirect('exhibit_list')
+            
+        except Exception as e:
+            error_message = str(e)
+            print(f"❌ Ошибка при сохранении экспоната: {error_message}")
+            messages.error(request, f'Ошибка при сохранении: {error_message}')
+            return redirect('add_exhibit')
     
-    # Получаем данные для выпадающих списков
+    # GET запрос - показываем форму
     with connection.cursor() as cursor:
-        # Авторы
         cursor.execute("SELECT id, full_name FROM authors ORDER BY full_name")
         authors = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
         
-        # Материалы
         cursor.execute("SELECT id, name FROM materials ORDER BY name")
         materials = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
         
-        # Техники
         cursor.execute("SELECT id, name FROM techniques ORDER BY name")
         techniques = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
         
-        # Типы подлинности
         cursor.execute("SELECT id, authenticity_name FROM authenticity_types ORDER BY authenticity_name")
         authenticities = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
         
-        # Способы поступления
         cursor.execute("SELECT id, method_name FROM acquisition_methods ORDER BY method_name")
         methods = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
     
@@ -201,12 +501,11 @@ def add_exhibit(request):
     }
     return render(request, 'add_exhibit.html', context)
 
-# Новые представления для управления
+
 @login_required
 def management_menu(request):
     """Меню управления"""
     with connection.cursor() as cursor:
-        # Количество реставраций
         cursor.execute("""
             SELECT COUNT(*) FROM exhibit_history 
             WHERE event_type = 'restoration' 
@@ -214,7 +513,6 @@ def management_menu(request):
         """)
         restoration_count = cursor.fetchone()[0]
         
-        # Проверяем, существует ли таблица exhibitions
         cursor.execute("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -228,7 +526,6 @@ def management_menu(request):
             cursor.execute("SELECT COUNT(*) FROM exhibitions WHERE is_active = true")
             active_exhibitions = cursor.fetchone()[0]
         
-        # Количество списаний в этом году
         cursor.execute("""
             SELECT COUNT(*) FROM exhibit_history 
             WHERE event_type = 'write_off' 
@@ -244,7 +541,6 @@ def management_menu(request):
     return render(request, 'management/menu.html', context)
 
 
-# Реставрация
 @login_required
 def restoration_list(request):
     """Список реставраций"""
@@ -275,45 +571,140 @@ def restoration_list(request):
 
 @login_required
 def add_restoration(request):
-    """Добавление реставрации"""
     if request.method == 'POST':
         exhibit_id = request.POST.get('exhibit')
         start_date = request.POST.get('start_date')
         description = request.POST.get('description')
-        document = request.POST.get('document_reference', '')
+        document_reference = request.POST.get('document_reference', '')
         
+        # Дополнительные поля
+        end_date = request.POST.get('end_date', None) or None
+        restorer_name = request.POST.get('restorer_name', '')
+        materials_used = request.POST.get('materials_used', '')
+        condition_before = request.POST.get('condition_before', '')
+        condition_after = request.POST.get('condition_after', '')
+        
+        # Вставляем запись о реставрации
         with connection.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO exhibit_history 
-                (exhibit_id, event_date, event_type, description, document_reference, created_at)
-                VALUES (%s, %s, 'restoration', %s, %s, CURRENT_TIMESTAMP)
-            """, [exhibit_id, start_date, description, document])
-            
-            messages.success(request, 'Реставрация успешно добавлена')
+                INSERT INTO restorations (
+                    exhibit_id, start_date, end_date, restorer_name, 
+                    description, materials_used, condition_before, 
+                    condition_after, document_reference, created_by_id, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, [
+                exhibit_id, start_date, end_date, restorer_name,
+                description, materials_used, condition_before,
+                condition_after, document_reference, request.user.id,
+                datetime.now()
+            ])
+            restoration_id = cursor.fetchone()[0]
+        
+        messages.success(request, 'Реставрация успешно добавлена!')
+        
+        # Проверяем, нужно ли скачать PDF
+        if 'save_and_download' in request.POST:
+            return redirect('download_restoration_pdf', restoration_id=restoration_id)
         
         return redirect('restoration_list')
     
-    # Получаем список экспонатов
+    # GET запрос - получаем список экспонатов для формы
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT id, exhibit_name, inventory_number 
             FROM exhibits 
             ORDER BY exhibit_name
         """)
-        columns = [col[0] for col in cursor.description]
-        exhibits = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        exhibits = cursor.fetchall()
     
-    context = {
-        'exhibits': exhibits,
+    # Преобразуем в список словарей для удобства в шаблоне
+    exhibits_list = []
+    for row in exhibits:
+        exhibits_list.append({
+            'id': row[0],
+            'exhibit_name': row[1],
+            'inventory_number': row[2]
+        })
+    
+    return render(request, 'management/add_restoration.html', {
+        'exhibits': exhibits_list
+    })
+
+@login_required
+def download_restoration_pdf(request, restoration_id):
+    # Получаем данные о реставрации и экспонате
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT 
+                r.id,
+                r.exhibit_id,
+                r.start_date,
+                r.end_date,
+                r.restorer_name,
+                r.description,
+                r.materials_used,
+                r.condition_before,
+                r.condition_after,
+                r.document_reference,
+                r.created_at,
+                e.inventory_number,
+                e.exhibit_name,
+                e.dating,
+                e.dimensions,
+                COALESCE(a.full_name, 'Не указан') as author_name,
+                COALESCE(m.name, 'Не указан') as material_name,
+                COALESCE(t.name, 'Не указана') as technique_name
+            FROM restorations r
+            JOIN exhibits e ON r.exhibit_id = e.id
+            LEFT JOIN authors a ON e.author_id = a.id
+            LEFT JOIN materials m ON e.material_id = m.id
+            LEFT JOIN techniques t ON e.technique_id = t.id
+            WHERE r.id = %s
+        """, [restoration_id])
+        
+        row = cursor.fetchone()
+    
+    if not row:
+        messages.error(request, 'Реставрация не найдена')
+        return redirect('restoration_list')
+    
+    # Создаем простой словарь с данными
+    restoration_data = {
+        'id': row[0],
+        'exhibit_id': row[1],
+        'start_date': row[2],
+        'end_date': row[3],
+        'restorer_name': row[4] or '',
+        'description': row[5] or '',
+        'materials_used': row[6] or '',
+        'condition_before': row[7] or '',
+        'condition_after': row[8] or '',
+        'document_reference': row[9] or '',
+        'created_at': row[10],
+        'inventory_number': row[11],
+        'exhibit_name': row[12],
+        'dating': row[13] or '',
+        'dimensions': row[14] or '',
+        'author_name': row[15],
+        'material_name': row[16],
+        'technique_name': row[17],
     }
-    return render(request, 'management/add_restoration.html', context)
+    
+    # Генерируем PDF
+    from .pdf_generator_simple import generate_simple_restoration_pdf
+    pdf_buffer = generate_simple_restoration_pdf(restoration_data)
+    
+    return FileResponse(
+        pdf_buffer,
+        as_attachment=True,
+        filename=f'restoration_act_{restoration_id}_{datetime.now().strftime("%Y%m%d")}.pdf'
+    )
 
 
-# Выставки
 @login_required
 def exhibition_list(request):
     """Список выставок"""
-    # Проверяем, существует ли таблица exhibitions
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT EXISTS (
@@ -324,7 +715,6 @@ def exhibition_list(request):
         has_table = cursor.fetchone()[0]
         
         if not has_table:
-            # Создаем таблицу выставок
             cursor.execute("""
                 CREATE TABLE exhibitions (
                     id SERIAL PRIMARY KEY,
@@ -341,7 +731,6 @@ def exhibition_list(request):
                 )
             """)
             
-            # Создаем таблицу связи выставок с экспонатами
             cursor.execute("""
                 CREATE TABLE exhibition_exhibits (
                     exhibition_id INTEGER REFERENCES exhibitions(id) ON DELETE CASCADE,
@@ -350,7 +739,6 @@ def exhibition_list(request):
                 )
             """)
         
-        # Получаем список выставок
         show_all = request.GET.get('show_all')
         if show_all:
             cursor.execute("""
@@ -395,7 +783,6 @@ def add_exhibition(request):
         exhibit_ids = request.POST.getlist('exhibits')
         
         with connection.cursor() as cursor:
-            # Вставляем выставку
             cursor.execute("""
                 INSERT INTO exhibitions 
                 (name, description, start_date, end_date, location, curator, is_active, notes, created_by_id, created_at)
@@ -405,14 +792,12 @@ def add_exhibition(request):
             
             exhibition_id = cursor.fetchone()[0]
             
-            # Добавляем связи с экспонатами
             for exhibit_id in exhibit_ids:
                 cursor.execute("""
                     INSERT INTO exhibition_exhibits (exhibition_id, exhibit_id)
                     VALUES (%s, %s)
                 """, [exhibition_id, exhibit_id])
                 
-                # Добавляем запись в историю экспоната
                 cursor.execute("""
                     INSERT INTO exhibit_history 
                     (exhibit_id, event_date, event_type, description, created_at)
@@ -423,7 +808,6 @@ def add_exhibition(request):
         
         return redirect('exhibition_list')
     
-    # Получаем список экспонатов
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT id, exhibit_name, inventory_number 
@@ -439,7 +823,6 @@ def add_exhibition(request):
     return render(request, 'management/add_exhibition.html', context)
 
 
-# Списание
 @login_required
 def write_off_list(request):
     """Список списаний"""
@@ -503,7 +886,6 @@ def add_write_off(request):
         reason_text = f"{reason}: {reason_description}"
         
         with connection.cursor() as cursor:
-            # Вставляем запись о списании
             cursor.execute("""
                 INSERT INTO exhibit_history 
                 (exhibit_id, event_date, event_type, description, document_reference, created_at)
@@ -513,7 +895,6 @@ def add_write_off(request):
             
             write_off_id = cursor.fetchone()[0]
             
-            # Получаем данные экспоната для акта
             cursor.execute("""
                 SELECT 
                     e.exhibit_name,
@@ -539,21 +920,7 @@ def add_write_off(request):
                     'Место хранения': row[5] or '—',
                     'Автор': row[6] or 'Неизвестен',
                 }
-                print("="*50)
-                print("Данные из БД:")
-                print(f"row[0] (Название): {row[0]}")
-                print(f"row[1] (Инв. номер): {row[1]}")
-                print(f"row[2] (Учетный шифр): {row[2]}")
-                print(f"row[3] (Датировка): {row[3]}")
-                print(f"row[4] (Размеры): {row[4]}")
-                print(f"row[5] (Место хранения): {row[5]}")
-                print(f"row[6] (Автор): {row[6]}")
-                print("exhibit_data:", exhibit_data)
-                print("reason_text:", reason_text)
-                print("write_off_date:", write_off_date)
-                print("document_reference:", document_reference)
-                print("="*50)
-                # Генерируем PDF
+                
                 pdf_path = generate_write_off_act(
                     request, 
                     write_off_id, 
@@ -569,7 +936,6 @@ def add_write_off(request):
         
         return redirect('write_off_list')
     
-    # Получаем список экспонатов
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT id, exhibit_name, inventory_number 
@@ -584,11 +950,13 @@ def add_write_off(request):
     }
     return render(request, 'management/add_write_off.html', context)
 
+
 @login_required
 def exhibit_detail(request, exhibit_id):
     """Детальная информация об экспонате"""
+    from django.conf import settings
+    
     with connection.cursor() as cursor:
-        # Основная информация об экспонате
         cursor.execute("""
             SELECT 
                 e.*,
@@ -615,7 +983,6 @@ def exhibit_detail(request, exhibit_id):
             return redirect('exhibit_list')
         exhibit = dict(zip(columns, row))
         
-        # Получаем все материалы (если есть в exhibit_materials)
         cursor.execute("""
             SELECT m.name 
             FROM materials m
@@ -629,107 +996,291 @@ def exhibit_detail(request, exhibit_id):
         else:
             exhibit['all_materials'] = exhibit.get('material_name', 'Не указан')
         
-        # Получаем фотографии
         cursor.execute("""
             SELECT photo_path, is_main, description, uploaded_at
             FROM exhibit_photos 
             WHERE exhibit_id = %s
             ORDER BY is_main DESC, uploaded_at DESC
         """, [exhibit_id])
-        photos = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
         
-        # Получаем историю экспоната (поступления, перемещения, реставрации)
+        # 🔧 ИСПРАВЛЕНО: правильно формируем полные URL для фото
+        photos = []
+        for row in cursor.fetchall():
+            photo_path = row[0]
+            if photo_path:
+                # Если путь не начинается с http, добавляем MEDIA_URL
+                if not photo_path.startswith(('http://', 'https://')):
+                    photo_path = settings.MEDIA_URL + photo_path
+            photos.append({
+                'photo_path': photo_path,
+                'is_main': row[1],
+                'description': row[2],
+                'uploaded_at': row[3]
+            })
+        
         cursor.execute("""
             SELECT event_date, event_type, description, document_reference, created_at
             FROM exhibit_history
             WHERE exhibit_id = %s
             ORDER BY event_date DESC, created_at DESC
         """, [exhibit_id])
-        history = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        history = []
+        for row in cursor.fetchall():
+            history.append({
+                'event_date': row[0],
+                'event_type': row[1],
+                'description': row[2],
+                'document_reference': row[3],
+                'created_at': row[4]
+            })
     
     context = {
         'exhibit': exhibit,
         'photos': photos,
         'history': history,
+        'MEDIA_URL': settings.MEDIA_URL,  # ← ДОБАВЛЯЕМ MEDIA_URL В КОНТЕКСТ
     }
     return render(request, 'exhibit_detail.html', context)
 
 
-# 👇 ЭТА ФУНКЦИЯ ДОЛЖНА БЫТЬ ЗДЕСЬ (на одном уровне с exhibit_detail, НЕ внутри неё)
-def generate_write_off_act(request, write_off_id, exhibit_data, reason_text, date, document):
-    """Генерация PDF акта списания"""
-    # Создаём папку для актов, если её нет
-    acts_dir = os.path.join('media', 'write_off_acts')
-    os.makedirs(acts_dir, exist_ok=True)
+@login_required
+def edit_exhibit(request, exhibit_id):
+    """Редактирование экспоната"""
+    if request.method == 'POST':
+        inventory_number = request.POST.get('inventory_number')
+        object_code = request.POST.get('object_code')
+        exhibit_name = request.POST.get('exhibit_name')
+        author_id = request.POST.get('author_id') or None
+        dating = request.POST.get('dating')
+        material_id = request.POST.get('material_id') or None
+        technique_id = request.POST.get('technique_id') or None
+        dimensions = request.POST.get('dimensions')
+        weight = request.POST.get('weight') or None
+        authenticity_id = request.POST.get('authenticity_id') or None
+        acquisition_method_id = request.POST.get('acquisition_method_id') or None
+        acquisition_date = request.POST.get('acquisition_date')
+        source_of_acquisition = request.POST.get('source_of_acquisition')
+        document_reference = request.POST.get('document_reference')
+        location_in_museum = request.POST.get('location_in_museum')
+        condition = request.POST.get('condition')
+        description = request.POST.get('description')
+        is_on_display = request.POST.get('is_on_display') == 'on'
+        photo_url = request.POST.get('photo_url')
+        
+        # Базовая валидация
+        errors = []
+        if not inventory_number:
+            errors.append('Инвентарный номер обязателен')
+        if not exhibit_name:
+            errors.append('Название экспоната обязательно')
+        if not acquisition_date:
+            errors.append('Дата поступления обязательна')
+        
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return redirect('edit_exhibit', exhibit_id=exhibit_id)
+        
+        try:
+            with connection.cursor() as cursor:
+                # Проверяем уникальность инвентарного номера (исключая текущий экспонат)
+                cursor.execute("""
+                    SELECT id, exhibit_name FROM exhibits 
+                    WHERE inventory_number = %s AND id != %s
+                """, [inventory_number, exhibit_id])
+                existing = cursor.fetchone()
+                
+                if existing:
+                    messages.error(request, f'Экспонат с инвентарным номером "{inventory_number}" уже существует: "{existing[1]}"')
+                    
+                    # Получаем данные для формы
+                    with connection.cursor() as cursor2:
+                        cursor2.execute("SELECT id, full_name FROM authors ORDER BY full_name")
+                        authors = [dict(zip([col[0] for col in cursor2.description], row)) for row in cursor2.fetchall()]
+                        
+                        cursor2.execute("SELECT id, name FROM materials ORDER BY name")
+                        materials = [dict(zip([col[0] for col in cursor2.description], row)) for row in cursor2.fetchall()]
+                        
+                        cursor2.execute("SELECT id, name FROM techniques ORDER BY name")
+                        techniques = [dict(zip([col[0] for col in cursor2.description], row)) for row in cursor2.fetchall()]
+                        
+                        cursor2.execute("SELECT id, authenticity_name FROM authenticity_types ORDER BY authenticity_name")
+                        authenticities = [dict(zip([col[0] for col in cursor2.description], row)) for row in cursor2.fetchall()]
+                        
+                        cursor2.execute("SELECT id, method_name FROM acquisition_methods ORDER BY method_name")
+                        methods = [dict(zip([col[0] for col in cursor2.description], row)) for row in cursor2.fetchall()]
+                    
+                    context = {
+                        'authors': authors,
+                        'materials': materials,
+                        'techniques': techniques,
+                        'authenticities': authenticities,
+                        'methods': methods,
+                        'exhibit_id': exhibit_id,
+                        'is_edit': True,
+                        'form_data': {
+                            'inventory_number': inventory_number,
+                            'object_code': object_code,
+                            'exhibit_name': exhibit_name,
+                            'author_id': author_id,
+                            'dating': dating,
+                            'material_id': material_id,
+                            'technique_id': technique_id,
+                            'dimensions': dimensions,
+                            'weight': weight,
+                            'authenticity_id': authenticity_id,
+                            'acquisition_method_id': acquisition_method_id,
+                            'acquisition_date': acquisition_date,
+                            'source_of_acquisition': source_of_acquisition,
+                            'document_reference': document_reference,
+                            'location_in_museum': location_in_museum,
+                            'condition': condition,
+                            'description': description,
+                            'is_on_display': request.POST.get('is_on_display') == 'on',
+                            'photo_url': photo_url,
+                        }
+                    }
+                    return render(request, 'edit_exhibit.html', context)
+                
+                # Обновляем экспонат
+                cursor.execute("""
+                    UPDATE exhibits SET
+                        inventory_number = %s,
+                        object_code = %s,
+                        exhibit_name = %s,
+                        author_id = %s,
+                        dating = %s,
+                        material_id = %s,
+                        technique_id = %s,
+                        dimensions = %s,
+                        weight = %s,
+                        authenticity_id = %s,
+                        acquisition_method_id = %s,
+                        acquisition_date = %s,
+                        source_of_acquisition = %s,
+                        document_reference = %s,
+                        location_in_museum = %s,
+                        condition = %s,
+                        description = %s,
+                        is_on_display = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, [inventory_number, object_code, exhibit_name, author_id, dating,
+                      material_id, technique_id, dimensions, weight, authenticity_id,
+                      acquisition_method_id, acquisition_date, source_of_acquisition,
+                      document_reference, location_in_museum, condition, description,
+                      is_on_display, exhibit_id])
+                
+                # Обновляем фото, если указано
+                if photo_url:
+                    # Проверяем, есть ли уже главное фото
+                    cursor.execute("""
+                        SELECT id FROM exhibit_photos 
+                        WHERE exhibit_id = %s AND is_main = TRUE
+                    """, [exhibit_id])
+                    existing_photo = cursor.fetchone()
+                    
+                    if existing_photo:
+                        # Обновляем существующее фото
+                        cursor.execute("""
+                            UPDATE exhibit_photos SET photo_path = %s, uploaded_at = CURRENT_TIMESTAMP
+                            WHERE id = %s
+                        """, [photo_url, existing_photo[0]])
+                    else:
+                        # Добавляем новое фото
+                        cursor.execute("""
+                            INSERT INTO exhibit_photos (exhibit_id, photo_path, is_main, uploaded_at)
+                            VALUES (%s, %s, TRUE, CURRENT_TIMESTAMP)
+                        """, [exhibit_id, photo_url])
+
+            messages.success(request, 'Экспонат успешно обновлён')
+            return redirect('exhibit_detail', exhibit_id=exhibit_id)
+            
+        except Exception as e:
+            error_message = str(e)
+            messages.error(request, f'Ошибка при обновлении: {error_message}')
+            return redirect('edit_exhibit', exhibit_id=exhibit_id)
     
-    # Имя файла: act_списание_дата_время.pdf
-    filename = f"act_write_off_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    filepath = os.path.join(acts_dir, filename)
+    # GET запрос - загружаем данные экспоната
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT 
+                e.*,
+                a.full_name as author_name
+            FROM exhibits e
+            LEFT JOIN authors a ON e.author_id = a.id
+            WHERE e.id = %s
+        """, [exhibit_id])
+        
+        row = cursor.fetchone()
+        if not row:
+            messages.error(request, 'Экспонат не найден')
+            return redirect('exhibit_list')
+        
+        columns = [col[0] for col in cursor.description]
+        exhibit = dict(zip(columns, row))
+        
+        # Получаем списки для выпадающих меню
+        cursor.execute("SELECT id, full_name FROM authors ORDER BY full_name")
+        authors = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, name FROM materials ORDER BY name")
+        materials = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, name FROM techniques ORDER BY name")
+        techniques = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, authenticity_name FROM authenticity_types ORDER BY authenticity_name")
+        authenticities = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, method_name FROM acquisition_methods ORDER BY method_name")
+        methods = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        # Получаем главное фото
+        cursor.execute("""
+            SELECT photo_path FROM exhibit_photos 
+            WHERE exhibit_id = %s AND is_main = TRUE 
+            LIMIT 1
+        """, [exhibit_id])
+        photo_row = cursor.fetchone()
+        exhibit['main_photo'] = photo_row[0] if photo_row else ''
     
-    # Создаём PDF
-    c = canvas.Canvas(filepath, pagesize=A4)
-    width, height = A4
+    # Форматируем даты для формы
+    if exhibit.get('acquisition_date'):
+        if hasattr(exhibit['acquisition_date'], 'strftime'):
+            exhibit['acquisition_date'] = exhibit['acquisition_date'].strftime('%Y-%m-%d')
+        elif isinstance(exhibit['acquisition_date'], str):
+            exhibit['acquisition_date'] = str(exhibit['acquisition_date'])[:10]
     
-    # Заголовок
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 50, "АКТ О СПИСАНИИ МУЗЕЙНОГО ПРЕДМЕТА")
-    
-    # Дата и номер
-    c.setFont("Helvetica", 12)
-    c.drawString(50, height - 80, f"Дата составления: {date}")
-    c.drawString(50, height - 100, f"Номер документа: {document if document else 'б/н'}")
-    
-    # Линия-разделитель
-    c.line(50, height - 115, width - 50, height - 115)
-    
-    # Информация об экспонате
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 140, "Сведения об экспонате:")
-    
-    c.setFont("Helvetica", 12)
-    y = height - 170
-    for key, value in exhibit_data.items():
-        c.drawString(70, y, f"{key}: {value}")
-        y -= 20
-    
-    # Причина списания
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, y - 20, "Причина списания:")
-    c.setFont("Helvetica", 12)
-    
-    # Разбиваем длинный текст на строки
-    reason_lines = reason_text.split('\n')
-    y -= 50
-    for line in reason_lines:
-        if len(line) > 80:
-            words = line.split(' ')
-            current_line = ''
-            for word in words:
-                if len(current_line + ' ' + word) < 80:
-                    current_line += ' ' + word if current_line else word
-                else:
-                    c.drawString(70, y, current_line)
-                    y -= 20
-                    current_line = word
-            if current_line:
-                c.drawString(70, y, current_line)
-                y -= 20
-        else:
-            c.drawString(70, y, line)
-            y -= 20
-    
-    # Подписи
-    y -= 40
-    c.line(70, y, 200, y)
-    c.drawString(70, y - 20, "Директор музея")
-    
-    c.line(300, y, 430, y)
-    c.drawString(300, y - 20, "Главный хранитель")
-    
-    c.line(70, y - 60, 200, y - 60)
-    c.drawString(70, y - 80, "Ответственный сотрудник")
-    
-    # Сохраняем PDF
-    c.save()
-    
-    return filepath
+    context = {
+        'authors': authors,
+        'materials': materials,
+        'techniques': techniques,
+        'authenticities': authenticities,
+        'methods': methods,
+        'exhibit_id': exhibit_id,
+        'is_edit': True,
+        'form_data': {
+            'inventory_number': exhibit.get('inventory_number', ''),
+            'object_code': exhibit.get('object_code', ''),
+            'exhibit_name': exhibit.get('exhibit_name', ''),
+            'author_id': str(exhibit.get('author_id')) if exhibit.get('author_id') else '',
+            'author_name': exhibit.get('author_name', ''),
+            'dating': exhibit.get('dating', ''),
+            'material_id': str(exhibit.get('material_id')) if exhibit.get('material_id') else '',
+            'technique_id': str(exhibit.get('technique_id')) if exhibit.get('technique_id') else '',
+            'dimensions': exhibit.get('dimensions', ''),
+            'weight': exhibit.get('weight', ''),
+            'authenticity_id': str(exhibit.get('authenticity_id')) if exhibit.get('authenticity_id') else '',
+            'acquisition_method_id': str(exhibit.get('acquisition_method_id')) if exhibit.get('acquisition_method_id') else '',
+            'acquisition_date': exhibit.get('acquisition_date', ''),
+            'source_of_acquisition': exhibit.get('source_of_acquisition', ''),
+            'document_reference': exhibit.get('document_reference', ''),
+            'location_in_museum': exhibit.get('location_in_museum', ''),
+            'condition': exhibit.get('condition', ''),
+            'description': exhibit.get('description', ''),
+            'is_on_display': exhibit.get('is_on_display', False),
+            'photo_url': exhibit.get('main_photo', ''),
+        }
+    }
+    return render(request, 'edit_exhibit.html', context)

@@ -1,0 +1,33 @@
+<div class="exhibits-grid">
+    {% for exhibit in exhibits %}
+    <a href="{% url 'public_exhibit_detail' exhibit.id %}" class="exhibit-card">
+        <div class="exhibit-photo" style="background-image: url('{% if exhibit.main_photo %}{{ exhibit.main_photo }}{% else %}https://via.placeholder.com/350x200/79443B/ffffff?text=Нет+фото{% endif %}')"></div>
+        <div class="exhibit-info">
+            <div class="exhibit-title">{{ exhibit.exhibit_name }}</div>
+            <div class="exhibit-meta">
+                <div class="meta-item">
+                    <div class="meta-label">Автор</div>
+                    <div class="meta-value">{{ exhibit.author_name|default:"Неизвестен" }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Датировка</div>
+                    <div class="meta-value">{{ exhibit.dating|default:"—" }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Материал</div>
+                    <div class="meta-value">{{ exhibit.material_names|default:"—"|truncatechars:30 }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Инв. номер</div>
+                    <div class="meta-value">{{ exhibit.inventory_number }}</div>
+                </div>
+            </div>
+        </div>
+    </a>
+    {% empty %}
+    <div class="no-data">
+        <p>Экспонаты не найдены</p>
+        <p style="font-size: 14px; margin-top: 8px;">Попробуйте изменить параметры поиска или фильтрации</p>
+    </div>
+    {% endfor %}
+</div>

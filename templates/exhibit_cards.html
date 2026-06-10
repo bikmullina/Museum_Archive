@@ -1,0 +1,43 @@
+{% for exhibit in exhibits %}
+<div class="exhibit-card" onclick="window.location.href='{% url 'exhibit_detail' exhibit.id %}'">
+    <div class="exhibit-photo" style="background-image: url('{% if exhibit.main_photo %}{{ exhibit.main_photo }}{% else %}https://via.placeholder.com/350x250/79443B/ffffff?text=Нет+фото{% endif %}')">
+        {% if not exhibit.main_photo %}
+            <span>Нет фото</span>
+        {% endif %}
+    </div>
+    <div class="exhibit-info">
+        <div class="exhibit-title">{{ exhibit.exhibit_name }}</div>
+        <div class="exhibit-meta">
+            <div class="meta-item">
+                <div class="meta-label">Инв. номер</div>
+                <div class="meta-value">{{ exhibit.inventory_number }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Автор</div>
+                <div class="meta-value">{{ exhibit.author_name|default:"Неизвестен" }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Датировка</div>
+                <div class="meta-value">{{ exhibit.dating|default:"Не указана" }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Материал</div>
+                <div class="meta-value">{{ exhibit.material_names|default:"Не указан" }}</div>
+            </div>
+        </div>
+        <div class="exhibit-description">
+            {{ exhibit.description|default:"Описание отсутствует"|truncatechars:100 }}
+        </div>
+        <div class="exhibit-footer">
+            <span class="location">{{ exhibit.location_in_museum|default:"Место не указано" }}</span>
+            <span class="status {% if exhibit.is_on_display %}status-display{% else %}status-storage{% endif %}">
+                {% if exhibit.is_on_display %}На экспозиции{% else %}В фондах{% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="no-results">
+    По вашему запросу ничего не найдено. Попробуйте изменить параметры поиска.
+</div>
+{% endfor %}

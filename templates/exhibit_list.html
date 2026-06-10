@@ -30,6 +30,8 @@
             align-items: center;
             max-width: 1400px;
             margin: 0 auto;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
         .logo {
@@ -37,6 +39,157 @@
             font-size: 28px;
             font-weight: bold;
             letter-spacing: 2px;
+        }
+
+        .search-section {
+            flex: 1;
+            max-width: 500px;
+            margin: 0 20px;
+        }
+
+        .search-container {
+            position: relative;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #79443B;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: #5a312b;
+            box-shadow: 0 0 10px rgba(121, 68, 59, 0.2);
+        }
+
+        .advanced-search-btn {
+            background-color: #f0f0f0;
+            color: #79443B;
+            border: 2px solid #79443B;
+            padding: 12px 15px;
+            border-radius: 25px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .advanced-search-btn:hover {
+            background-color: #79443B;
+            color: white;
+        }
+
+        .advanced-search-panel {
+            display: none;
+            background-color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .advanced-search-panel.active {
+            display: block;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            color: #79443B;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .filter-input:focus {
+            border-color: #79443B;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .apply-filters-btn {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .apply-filters-btn:hover {
+            background-color: #219a52;
+        }
+
+        .reset-filters-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .reset-filters-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .active-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .filter-tag {
+            background-color: #f0f0f0;
+            color: #79443B;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-tag .remove-filter {
+            cursor: pointer;
+            font-weight: bold;
+            color: #e74c3c;
         }
 
         .nav-links {
@@ -82,6 +235,13 @@
             font-size: 36px;
             margin-bottom: 30px;
             text-align: center;
+        }
+
+        .results-info {
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 16px;
         }
 
         .exhibits-grid {
@@ -193,67 +353,24 @@
             color: white;
         }
 
-        .modal {
+        .loading-indicator {
+            text-align: center;
+            color: white;
+            font-size: 18px;
+            padding: 20px;
             display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.7);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
         }
 
-        .modal.active {
-            display: flex;
+        .loading-indicator.active {
+            display: block;
         }
 
-        .modal-content {
-            background-color: white;
-            border-radius: 30px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            position: relative;
-        }
-
-        .close-modal {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 24px;
-            cursor: pointer;
-            color: #79443B;
-            background: none;
-            border: none;
-        }
-
-        .modal-title {
-            color: #79443B;
-            font-size: 28px;
-            margin-bottom: 20px;
-            padding-right: 30px;
-        }
-
-        .modal-info {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .modal-photo {
-            width: 100%;
-            height: 300px;
-            background-color: #f0f0f0;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            background-size: cover;
-            background-position: center;
+        .no-results {
+            grid-column: 1/-1;
+            text-align: center;
+            color: white;
+            font-size: 18px;
+            padding: 50px;
         }
 
         .messages {
@@ -271,10 +388,19 @@
         @media (max-width: 768px) {
             .nav-bar {
                 flex-direction: column;
-                gap: 15px;
+                align-items: stretch;
+            }
+
+            .search-section {
+                max-width: 100%;
+                margin: 0;
             }
             
             .exhibits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -285,10 +411,18 @@
         <div class="nav-bar">
             <div class="logo">АРХИВ</div>
 
-            <form method="get" action="{% url 'exhibit_list' %}" style="display: flex; gap: 10px; flex: 1; max-width: 400px; margin: 0 20px;">
-                <input type="text" name="search" placeholder="Поиск по названию..." value="{{ search_query }}" style="flex: 1; padding: 10px; border: 2px solid #79443B; border-radius: 25px; font-size: 16px; outline: none;">
-                <button type="submit" style="background-color: #79443B; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: pointer;">Найти</button>
-            </form>
+            <div class="search-section">
+                <div class="search-container">
+                    <input type="text" 
+                           id="searchInput" 
+                           class="search-input" 
+                           placeholder=" Поиск по названию..." 
+                           value="{{ search_query }}">
+                    <button class="advanced-search-btn" onclick="toggleAdvancedSearch()">
+                         Расширенный
+                    </button>
+                </div>
+            </div>
 
             <div class="nav-links">
                 <a href="{% url 'add_exhibit' %}" class="nav-btn">Добавить экспонат</a>
@@ -312,85 +446,252 @@
         </div>
         {% endif %}
 
-        <div class="exhibits-grid">
-            {% for exhibit in exhibits %}
-            <div class="exhibit-card" onclick="window.location.href='{% url 'exhibit_detail' exhibit.id %}'">
-                <div class="exhibit-photo" style="background-image: url('{% if exhibit.main_photo %}{{ exhibit.main_photo }}{% else %}https://via.placeholder.com/350x250/79443B/ffffff?text=Нет+фото{% endif %}')">
-                    {% if not exhibit.main_photo %}
-                        <span>Нет фото</span>
-                    {% endif %}
+        <!-- Расширенный поиск -->
+        <div class="advanced-search-panel" id="advancedSearch">
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label class="filter-label">Автор</label>
+                    <select id="filterAuthor" class="filter-input">
+                        <option value="">Все авторы</option>
+                        {% for author in authors %}
+                        <option value="{{ author.full_name }}">{{ author.full_name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <div class="exhibit-info">
-                    <div class="exhibit-title">{{ exhibit.exhibit_name }}</div>
-                    <div class="exhibit-meta">
-                        <div class="meta-item">
-                            <div class="meta-label">Инв. номер</div>
-                            <div class="meta-value">{{ exhibit.inventory_number }}</div>
-                        </div>
-                        <div class="meta-item">
-                            <div class="meta-label">Автор</div>
-                            <div class="meta-value">{{ exhibit.author_name|default:"Неизвестен" }}</div>
-                        </div>
-                        <div class="meta-item">
-                            <div class="meta-label">Датировка</div>
-                            <div class="meta-value">{{ exhibit.dating|default:"Не указана" }}</div>
-                        </div>
-                        <div class="meta-item">
-                            <div class="meta-label">Материал</div>
-                            <div class="meta-value">{{ exhibit.material_names|default:"Не указан" }}</div>
-                        </div>
-                    </div>
-                    <div class="exhibit-description">
-                        {{ exhibit.description|default:"Описание отсутствует"|truncatechars:100 }}
-                    </div>
-                    <div class="exhibit-footer">
-                        <span class="location">{{ exhibit.location_in_museum|default:"Место не указано" }}</span>
-                        <span class="status {% if exhibit.is_on_display %}status-display{% else %}status-storage{% endif %}">
-                            {% if exhibit.is_on_display %}На экспозиции{% else %}В фондах{% endif %}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            {% empty %}
-            <div style="grid-column: 1/-1; text-align: center; color: white; font-size: 20px; padding: 50px;">
-                Пока нет экспонатов. Нажмите "Добавить экспонат", чтобы начать!
-            </div>
-            {% endfor %}
-        </div>
-    </div>
 
-    <div class="modal" id="exhibitModal">
-        <div class="modal-content">
-            <button class="close-modal" onclick="closeModal()">&times;</button>
-            <div id="modalContent"></div>
+                <div class="filter-group">
+                    <label class="filter-label">Материал</label>
+                    <select id="filterMaterial" class="filter-input">
+                        <option value="">Все материалы</option>
+                        {% for material in materials %}
+                        <option value="{{ material.name }}">{{ material.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Техника</label>
+                    <select id="filterTechnique" class="filter-input">
+                        <option value="">Все техники</option>
+                        {% for technique in techniques %}
+                        <option value="{{ technique.name }}">{{ technique.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Место хранения</label>
+                    <input type="text" id="filterLocation" class="filter-input" placeholder="Место...">
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Датировка</label>
+                    <input type="text" id="filterDating" class="filter-input" placeholder="Например: XIX век">
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Статус</label>
+                    <select id="filterStatus" class="filter-input">
+                        <option value="">Все статусы</option>
+                        <option value="display">На экспозиции</option>
+                        <option value="storage">В фондах</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="filter-buttons">
+                <button class="reset-filters-btn" onclick="resetFilters()">Сбросить</button>
+                <button class="apply-filters-btn" onclick="applyFilters()">Применить</button>
+            </div>
+        </div>
+
+        <!-- Активные фильтры -->
+        <div class="active-filters" id="activeFilters"></div>
+
+        <div class="results-info" id="resultsInfo">
+            {% if search_query %}
+                Результаты поиска: "{{ search_query }}"
+            {% endif %}
+        </div>
+
+        <div class="loading-indicator" id="loadingIndicator">
+            🔄 Загрузка результатов...
+        </div>
+
+        <div class="exhibits-grid" id="exhibitsGrid">
+            {% include 'exhibit_cards.html' %}
         </div>
     </div>
 
     <script>
-        function openModal(exhibitId) {
-            const modal = document.getElementById('exhibitModal');
-            const modalContent = document.getElementById('modalContent');
-            
-            // Позже заменим на реальный запрос к серверу
-            modalContent.innerHTML = `
-                <div class="modal-photo" style="background-image: url('https://via.placeholder.com/600x300/79443B/ffffff?text=Загрузка...')"></div>
-                <h2 class="modal-title">Детальная информация</h2>
-                <p style="text-align: center; color: #666;">Подробные данные об экспонате ${exhibitId} загружаются...</p>
-            `;
-            
-            modal.classList.add('active');
+        let searchTimeout;
+        const searchInput = document.getElementById('searchInput');
+        const exhibitsGrid = document.getElementById('exhibitsGrid');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const resultsInfo = document.getElementById('resultsInfo');
+        const activeFilters = document.getElementById('activeFilters');
+
+        // Живой поиск
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch();
+            }, 300); // Задержка 300мс для избежания частых запросов
+        });
+
+        function toggleAdvancedSearch() {
+            const panel = document.getElementById('advancedSearch');
+            panel.classList.toggle('active');
         }
 
-        function closeModal() {
-            document.getElementById('exhibitModal').classList.remove('active');
+        function performSearch() {
+            const query = searchInput.value;
+            const filters = getFilters();
+            
+            // Объединяем поисковый запрос и фильтры
+            const params = new URLSearchParams({
+                search: query,
+                ...filters
+            });
+
+            updateURL(params);
+            loadResults(params);
         }
 
-        window.onclick = function(event) {
-            const modal = document.getElementById('exhibitModal');
-            if (event.target == modal) {
-                closeModal();
+        function applyFilters() {
+            performSearch();
+            updateActiveFilters();
+        }
+
+        function resetFilters() {
+            document.getElementById('filterAuthor').value = '';
+            document.getElementById('filterMaterial').value = '';
+            document.getElementById('filterTechnique').value = '';
+            document.getElementById('filterLocation').value = '';
+            document.getElementById('filterDating').value = '';
+            document.getElementById('filterStatus').value = '';
+            
+            activeFilters.innerHTML = '';
+            performSearch();
+        }
+
+        function getFilters() {
+            return {
+                author: document.getElementById('filterAuthor').value,
+                material: document.getElementById('filterMaterial').value,
+                technique: document.getElementById('filterTechnique').value,
+                location: document.getElementById('filterLocation').value,
+                dating: document.getElementById('filterDating').value,
+                status: document.getElementById('filterStatus').value
+            };
+        }
+
+        function updateActiveFilters() {
+            const filters = getFilters();
+            let html = '';
+            
+            for (const [key, value] of Object.entries(filters)) {
+                if (value) {
+                    const labels = {
+                        author: 'Автор',
+                        material: 'Материал',
+                        technique: 'Техника',
+                        location: 'Место',
+                        dating: 'Датировка',
+                        status: 'Статус'
+                    };
+                    const statusLabels = {
+                        display: 'На экспозиции',
+                        storage: 'В фондах'
+                    };
+                    const displayValue = key === 'status' ? statusLabels[value] : value;
+                    
+                    html += `
+                        <div class="filter-tag">
+                            ${labels[key]}: ${displayValue}
+                            <span class="remove-filter" onclick="removeFilter('${key}')">✕</span>
+                        </div>
+                    `;
+                }
+            }
+            
+            activeFilters.innerHTML = html;
+        }
+
+        function removeFilter(key) {
+            const element = document.getElementById('filter' + key.charAt(0).toUpperCase() + key.slice(1));
+            if (element) {
+                if (element.tagName === 'SELECT' || element.tagName === 'INPUT') {
+                    element.value = '';
+                }
+                performSearch();
+                updateActiveFilters();
             }
         }
+
+        function updateURL(params) {
+            const newURL = `${window.location.pathname}?${params.toString()}`;
+            window.history.pushState({}, '', newURL);
+        }
+
+        function loadResults(params) {
+    loadingIndicator.classList.add('active');
+    
+    fetch(`/api/exhibits/?${params.toString()}`)
+        .then(response => response.text())
+        .then(html => {
+            exhibitsGrid.innerHTML = html;
+            
+            // Считаем только карточки экспонатов
+            updateResultsCount(params);
+            
+            loadingIndicator.classList.remove('active');
+        })
+        .catch(error => {
+            console.error('Ошибка поиска:', error);
+            loadingIndicator.classList.remove('active');
+            exhibitsGrid.innerHTML = '<div class="no-results">Произошла ошибка при поиске. Попробуйте позже.</div>';
+            resultsInfo.textContent = '';
+        });
+}
+
+function updateResultsCount(params) {
+    // Считаем только элементы с классом exhibit-card
+    const exhibitCards = exhibitsGrid.querySelectorAll('.exhibit-card');
+    const count = exhibitCards.length;
+    const searchQuery = params.get('search');
+    
+    // Проверяем, есть ли активные фильтры
+    const hasFilters = params.get('author') || params.get('material') || 
+                       params.get('technique') || params.get('location') || 
+                       params.get('dating') || params.get('status');
+    
+    if (searchQuery || hasFilters) {
+        if (count === 0) {
+            resultsInfo.textContent = 'Найдено: 0 экспонатов';
+        } else {
+            resultsInfo.textContent = `Найдено: ${count} экспонат(ов)`;
+        }
+    } else {
+        resultsInfo.textContent = '';
+    }
+}
+
+        // Загружаем начальные данные с учетом фильтров из URL
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('search')) {
+                searchInput.value = urlParams.get('search');
+            }
+            if (urlParams.get('author')) document.getElementById('filterAuthor').value = urlParams.get('author');
+            if (urlParams.get('material')) document.getElementById('filterMaterial').value = urlParams.get('material');
+            if (urlParams.get('technique')) document.getElementById('filterTechnique').value = urlParams.get('technique');
+            if (urlParams.get('location')) document.getElementById('filterLocation').value = urlParams.get('location');
+            if (urlParams.get('dating')) document.getElementById('filterDating').value = urlParams.get('dating');
+            if (urlParams.get('status')) document.getElementById('filterStatus').value = urlParams.get('status');
+            
+            updateActiveFilters();
+        });
     </script>
 </body>
 </html>

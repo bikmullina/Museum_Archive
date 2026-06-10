@@ -61,6 +61,13 @@
             font-size: 16px;
             box-sizing: border-box;
             outline: none;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: #5a312b;
+            box-shadow: 0 0 5px rgba(121, 68, 59, 0.3);
         }
 
         button {
@@ -74,10 +81,12 @@
             font-weight: 500;
             cursor: pointer;
             margin-top: 10px;
+            transition: all 0.3s;
         }
 
         button:hover {
             background-color: #5a312b;
+            transform: translateY(-2px);
         }
 
         .error-message {
@@ -88,6 +97,17 @@
             margin-bottom: 20px;
             text-align: center;
             font-size: 14px;
+            border-left: 4px solid #d32f2f;
+        }
+
+        .error-message ul {
+            margin: 0;
+            padding-left: 20px;
+            text-align: left;
+        }
+
+        .error-message li {
+            margin: 5px 0;
         }
     </style>
 </head>
@@ -98,8 +118,20 @@
             
             {% if form.errors %}
                 <div class="error-message">
-                    Неверное имя пользователя или пароль
+                    {% for field, errors in form.errors.items %}
+                        {% for error in errors %}
+                            {{ error }}
+                        {% endfor %}
+                    {% endfor %}
                 </div>
+            {% endif %}
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="error-message">
+                        {{ message }}
+                    </div>
+                {% endfor %}
             {% endif %}
 
             <form method="post" action="{% url 'login' %}">
@@ -107,16 +139,24 @@
                 
                 <div class="form-group">
                     <label for="id_username">Логин</label>
-                    <input type="text" name="username" id="id_username" required>
+                    <input type="text" 
+                           name="username" 
+                           id="id_username" 
+                           value="{{ form.username.value|default:'' }}" 
+                           required
+                           autofocus>
                 </div>
 
                 <div class="form-group">
                     <label for="id_password">Пароль</label>
-                    <input type="password" name="password" id="id_password" required>
+                    <input type="password" 
+                           name="password" 
+                           id="id_password" 
+                           required>
                 </div>
 
                 <button type="submit">Войти</button>
-                <input type="hidden" name="next" value="/admin/">
+                <input type="hidden" name="next" value="{{ next|default:'/exhibits/' }}">
             </form>
         </div>
     </div>
